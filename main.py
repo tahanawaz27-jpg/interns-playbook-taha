@@ -13,6 +13,7 @@ Then check out the interactive docs at http://127.0.0.1:8000/docs
 from datetime import datetime
 from typing import Optional, List
 
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime
@@ -36,7 +37,7 @@ class User(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
 
-    tasks = relationship("Task", back_populates="owner")
+    tasks = relationship("Task", back_populates="owner")#one to many
 
 
 class Task(Base):
@@ -50,10 +51,11 @@ class Task(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
-    owner = relationship("User", back_populates="tasks")
+    owner = relationship("User", back_populates="tasks")#link user and tasks
 
 
-Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)#creates all the tables we defined before
+
 
 
 # --- schemas ---
@@ -156,7 +158,7 @@ def create_task(task: TaskCreate):
 def get_tasks_for_user(user_id: int):
     # returns a user's tasks
     db = SessionLocal()
-    tasks = db.query(Task).all()
+    tasks = db.query(Task).filter(Task.user_id == user_id)
     db.close()
     return tasks
 
@@ -172,6 +174,21 @@ def delete_task(task_id: int):
     db.commit()
     db.close()
     return {"detail": "Task deleted"}
+
+@app.get("/task/{task_id}", response_model=TaskOut)
+def get_task(task_id: int):
+    db = SessionLocal()
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+
+    db.close()
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return task
+
+
 
 
 @app.get("/")
