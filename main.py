@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Optional, List
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel,EmailStr,Field
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, Session, relationship
 
@@ -59,8 +59,8 @@ Base.metadata.create_all(bind=engine)
 # --- schemas ---
 
 class UserCreate(BaseModel):
-    name: str
-    email: str
+    name: str=Field(min_length=3,max_length=50)
+    email: EmailStr
 
 
 class UserOut(BaseModel):
@@ -73,10 +73,10 @@ class UserOut(BaseModel):
 
 
 class TaskCreate(BaseModel):
-    title: str
+    title: str=Field(max_length=50)
     description: Optional[str] = None
     priority: int = 1
-    user_id: int
+    user_id: int=Field(gt=0)
 
 
 class TaskOut(BaseModel):
@@ -156,7 +156,7 @@ def create_task(task: TaskCreate):
 def get_tasks_for_user(user_id: int):
     # returns a user's tasks
     db = SessionLocal()
-    tasks = db.query(Task).all()
+    tasks = db.query(Task).filter(user_id==Task.user_id)
     db.close()
     return tasks
 
@@ -173,6 +173,18 @@ def delete_task(task_id: int):
     db.close()
     return {"detail": "Task deleted"}
 
+@app.delete("/User/{user_id}")
+def delete_user(user_id: int):
+    db = SessionLocal()
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        db.close()
+        raise HTTPException(status_code=404, detail="User not found")
+    db.query(Task).filter(Task.user_id==user_id).delete()
+    db.delete(user)
+    db.commit()
+    db.close()
+    return {"detail": f"User and Task deleted for user_id: {user_id}"}
 
 @app.get("/")
 def root():
